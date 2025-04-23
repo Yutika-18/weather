@@ -1,0 +1,307 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weather & Air Quality Forecast</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-blue-100 to-white min-h-screen flex flex-col">
+  <header class="bg-blue-600 text-white p-4 shadow-md">
+    <div class="container mx-auto flex items-center justify-between">
+      <h1 class="text-2xl font-semibold flex items-center space-x-2">
+        <i class="fas fa-cloud-sun text-yellow-300"></i>
+        <span>Weather & Air Quality Forecast</span>
+      </h1>
+      <form id="locationForm" class="flex space-x-2">
+        <input
+          type="text"
+          id="locationInput"
+          placeholder="Enter location (e.g. India)"
+          class="rounded px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          required
+        />
+        <button
+          type="submit"
+          class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold rounded px-4 py-2 flex items-center space-x-2"
+        >
+          <i class="fas fa-search"></i>
+          <span>Search</span>
+        </button>
+      </form>
+    </div>
+  </header>
+
+  <main class="container mx-auto flex-grow p-4">
+    <section
+      id="currentWeather"
+      class="bg-white rounded-lg shadow-md p-6 mb-6 max-w-4xl mx-auto"
+    >
+      <h2 class="text-xl font-semibold mb-4 flex items-center space-x-2 text-blue-700">
+        <i class="fas fa-temperature-high"></i>
+        <span>Current Weather & Air Quality</span>
+      </h2>
+      <div id="currentWeatherContent" class="text-gray-700">
+        <p class="text-center text-lg text-gray-500">Enter a location and hit Search to see the weather.</p>
+      </div>
+    </section>
+
+    <section
+      id="forecastWeather"
+      class="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto"
+    >
+      <h2 class="text-xl font-semibold mb-4 flex items-center space-x-2 text-blue-700">
+        <i class="fas fa-calendar-alt"></i>
+        <span>3-Day Weather Forecast</span>
+      </h2>
+      <div id="forecastContent" class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-gray-700">
+        <p class="col-span-full text-center text-lg text-gray-500">Enter a location and hit Search to see the forecast.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-blue-600 text-white p-4 text-center">
+    <p>
+      Powered by <a href="https://www.weatherapi.com/" target="_blank" class="underline">Yutika</a>
+    </p>
+  </footer>
+
+  <script>
+    const apiKey = "06ff88fa6c9d4311aab175155252304";
+
+    const locationForm = document.getElementById("locationForm");
+    const locationInput = document.getElementById("locationInput");
+    const currentWeatherContent = document.getElementById("currentWeatherContent");
+    const forecastContent = document.getElementById("forecastContent");
+
+    locationForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const location = locationInput.value.trim();
+      if (!location) return;
+
+      currentWeatherContent.innerHTML = `<p class="text-center text-lg text-gray-500">Loading current weather...</p>`;
+      forecastContent.innerHTML = `<p class="col-span-full text-center text-lg text-gray-500">Loading forecast...</p>`;
+
+      try {
+        // Fetch current weather + air quality
+        const currentRes = await fetch(
+          `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(
+            location
+          )}&aqi=yes`
+        );
+        if (!currentRes.ok) throw new Error("Location not found");
+        const currentData = await currentRes.json();
+
+        // Fetch forecast for 3 days
+        const forecastRes = await fetch(
+          `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(
+            location
+          )}&days=3&aqi=yes&alerts=no`
+        );
+        if (!forecastRes.ok) throw new Error("Forecast not found");
+        const forecastData = await forecastRes.json();
+
+        renderCurrentWeather(currentData);
+        renderForecast(forecastData);
+      } catch (error) {
+        currentWeatherContent.innerHTML = `<p class="text-center text-red-600 font-semibold">${error.message}</p>`;
+        forecastContent.innerHTML = `<p class="col-span-full text-center text-red-600 font-semibold">Unable to load forecast.</p>`;
+      }
+    });
+
+    function renderCurrentWeather(data) {
+      const {
+        location,
+        current: {
+          temp_c,
+          condition,
+          wind_kph,
+          humidity,
+          feelslike_c,
+          uv,
+          air_quality,
+          last_updated,
+          icon,
+        },
+      } = data;
+
+      // Air quality components (pm2_5, pm10, o3, no2, so2, co)
+      const aqi = air_quality?.us_epa_index ?? null;
+      const aqiText = getAqiText(aqi);
+      const aqiColor = getAqiColor(aqi);
+
+      currentWeatherContent.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-6">
+          <img
+            src="https:${condition.icon}"
+            alt="Weather icon showing ${condition.text} in ${location.name}, ${location.country}"
+            class="w-24 h-24 mx-auto sm:mx-0"
+            width="96"
+            height="96"
+          />
+          <div class="mt-4 sm:mt-0 text-center sm:text-left">
+            <h3 class="text-2xl font-bold text-blue-800">${location.name}, ${location.country}</h3>
+            <p class="text-lg font-semibold">${condition.text}</p>
+            <p class="text-4xl font-extrabold text-yellow-500">${temp_c.toFixed(1)}&deg;C</p>
+            <p class="text-sm text-gray-600">Feels like ${feelslike_c.toFixed(1)}&deg;C</p>
+            <p class="mt-2 text-gray-700">
+              <i class="fas fa-wind mr-1"></i> Wind: ${wind_kph.toFixed(1)} kph
+            </p>
+            <p class="text-gray-700">
+              <i class="fas fa-tint mr-1"></i> Humidity: ${humidity}%
+            </p>
+            <p class="text-gray-700">
+              <i class="fas fa-sun mr-1"></i> UV Index: ${uv}
+            </p>
+            <p class="text-gray-500 text-xs mt-1">Last updated: ${last_updated}</p>
+          </div>
+        </div>
+
+        <div class="mt-6 p-4 rounded-lg border border-gray-300 bg-yellow-50 max-w-md mx-auto sm:mx-0">
+          <h4 class="text-lg font-semibold mb-2 text-yellow-700 flex items-center space-x-2">
+            <i class="fas fa-smog"></i>
+            <span>Air Quality (US EPA Index: ${aqi ?? "N/A"})</span>
+          </h4>
+          <p class="mb-2 font-semibold" style="color:${aqiColor}">${aqiText}</p>
+          <div class="grid grid-cols-3 gap-4 text-gray-700 text-sm">
+            <div>
+              <span class="font-semibold">PM2.5:</span> ${air_quality?.pm2_5?.toFixed(2) ?? "N/A"} µg/m³
+            </div>
+            <div>
+              <span class="font-semibold">PM10:</span> ${air_quality?.pm10?.toFixed(2) ?? "N/A"} µg/m³
+            </div>
+            <div>
+              <span class="font-semibold">O₃:</span> ${air_quality?.o3?.toFixed(2) ?? "N/A"} µg/m³
+            </div>
+            <div>
+              <span class="font-semibold">NO₂:</span> ${air_quality?.no2?.toFixed(2) ?? "N/A"} µg/m³
+            </div>
+            <div>
+              <span class="font-semibold">SO₂:</span> ${air_quality?.so2?.toFixed(2) ?? "N/A"} µg/m³
+            </div>
+            <div>
+              <span class="font-semibold">CO:</span> ${air_quality?.co?.toFixed(2) ?? "N/A"} µg/m³
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getAqiText(aqi) {
+      switch (aqi) {
+        case 1:
+          return "Good";
+        case 2:
+          return "Moderate";
+        case 3:
+          return "Unhealthy for Sensitive Groups";
+        case 4:
+          return "Unhealthy";
+        case 5:
+          return "Very Unhealthy";
+        case 6:
+          return "Hazardous";
+        default:
+          return "Unknown";
+      }
+    }
+
+    function getAqiColor(aqi) {
+      switch (aqi) {
+        case 1:
+          return "#4ade80"; // green
+        case 2:
+          return "#facc15"; // yellow
+        case 3:
+          return "#f97316"; // orange
+        case 4:
+          return "#ef4444"; // red
+        case 5:
+          return "#b91c1c"; // dark red
+        case 6:
+          return "#7c2d12"; // maroon
+        default:
+          return "#6b7280"; // gray
+      }
+    }
+
+    function renderForecast(data) {
+      const { forecast, location } = data;
+      const days = forecast.forecastday;
+
+      forecastContent.innerHTML = days
+        .map((day) => {
+          const {
+            date,
+            day: {
+              maxtemp_c,
+              mintemp_c,
+              avgtemp_c,
+              condition,
+              daily_chance_of_rain,
+              daily_chance_of_snow,
+              uv,
+              maxwind_kph,
+            },
+            hour,
+          } = day;
+
+          // Use the day condition icon
+          const iconUrl = `https:${condition.icon}`;
+
+          // Air quality for the day is not directly available in forecast API, so we show daily summary only.
+
+          return `
+            <article class="bg-blue-50 rounded-lg p-4 shadow hover:shadow-lg transition-shadow duration-200 flex flex-col items-center text-center">
+              <h3 class="font-semibold text-blue-800 mb-2">${new Date(date).toLocaleDateString(undefined, {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}</h3>
+              <img
+                src="${iconUrl}"
+                alt="Weather icon showing ${condition.text} on ${date} in ${location.name}, ${location.country}"
+                class="w-20 h-20 mx-auto mb-2"
+                width="80"
+                height="80"
+              />
+              <p class="font-semibold text-yellow-600 text-lg mb-1">${avgtemp_c.toFixed(1)}&deg;C</p>
+              <p class="text-sm text-gray-700 mb-1">${condition.text}</p>
+              <p class="text-sm text-gray-600 mb-1">
+                <i class="fas fa-arrow-up text-red-500"></i> Max: ${maxtemp_c.toFixed(1)}&deg;C
+              </p>
+              <p class="text-sm text-gray-600 mb-1">
+                <i class="fas fa-arrow-down text-blue-500"></i> Min: ${mintemp_c.toFixed(1)}&deg;C
+              </p>
+              <p class="text-sm text-gray-700 mb-1">
+                <i class="fas fa-umbrella"></i> Rain Chance: ${daily_chance_of_rain}%
+              </p>
+              <p class="text-sm text-gray-700 mb-1">
+                <i class="fas fa-snowflake"></i> Snow Chance: ${daily_chance_of_snow}%
+              </p>
+              <p class="text-sm text-gray-700 mb-1">
+                <i class="fas fa-wind"></i> Max Wind: ${maxwind_kph.toFixed(1)} kph
+              </p>
+              <p class="text-sm text-gray-700">
+                <i class="fas fa-sun"></i> UV Index: ${uv}
+              </p>
+            </article>
+          `;
+        })
+        .join("");
+    }
+  </script>
+</body>
+</html>
